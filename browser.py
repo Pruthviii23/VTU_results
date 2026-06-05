@@ -155,19 +155,26 @@ def submit_usn(driver, url: str, usn: str) -> bool:
             if alert_text is not None:
                 log.warning(f"[{usn}] Alert: '{alert_text}'")
 
-                if "Invalid captcha" in alert_text:
+                if "Invalid captcha" in alert_text or "invalid captcha" in alert_text:
                     time.sleep(config.DELAY)
                     continue
 
-                elif "Invalid" in alert_text and "USN" in alert_text:
-                    raise ValueError(f"USN rejected by site: {usn}")
+                # Catch any USN-rejection alert — exact wording varies by VTU portal
+                # e.g. "University Seat Number is not available or Invalid..!"
+                #      "Invalid USN" / "USN not found"
+                if any(phrase in alert_text for phrase in (
+                    "Seat Number is not available",
+                    "Invalid..!",
+                    "USN not found",
+                    "not available",
+                )) or ("Invalid" in alert_text and "USN" in alert_text):
+                    raise ValueError(f"USN not found on portal: {usn}")
 
-                else:
-                    # Unknown alert — log and retry
-                    log.warning(f"[{usn}] Unknown alert text: '{alert_text}' — retrying")
-                    driver.get(url)
-                    time.sleep(config.DELAY)
-                    continue
+                # Any other unknown alert — log and retry
+                log.warning(f"[{usn}] Unrecognised alert: '{alert_text}' — retrying")
+                driver.get(url)
+                time.sleep(config.DELAY)
+                continue
 
             # ------------------------------------------------
             # No alert — check results loaded

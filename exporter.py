@@ -6,6 +6,7 @@ from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 import config
+import sgpa as sgpa_calc
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ def _build_subject_index(subjects: list[dict]) -> dict:
     return {s["code"].strip().upper(): s for s in subjects}
 
 
-def _write_sheet(ws, sem_num: int, rows: list[dict]):
+def _write_sheet(ws, sem_num: int, rows: list[dict], scheme: str = "2022"):
     """
     Write one semester's worth of data to `ws`.
 
@@ -90,7 +91,10 @@ def _write_sheet(ws, sem_num: int, rows: list[dict]):
         subject_col[code] = col
         col += 4          # Internal, External, Total, Result
 
-    total_cols = col - 1
+    # SGPA columns come after all subjects
+    sgpa_col         = col        # SGPA value
+    credits_col      = col + 1    # Total credits
+    earned_col       = col + 2    # Earned credits
 
     # ------------------------------------------------
     # Row 1: headers
@@ -119,6 +123,19 @@ def _write_sheet(ws, sem_num: int, rows: list[dict]):
             sub_cell = ws.cell(row=2, column=start_col + i, value=field)
             _style_cell(sub_cell, font=_SUBHEAD_FONT, fill=_SUBHEAD_FILL,
                         alignment=_CENTER, border=_BORDER)
+
+    # SGPA header group
+    _SGPA_FILL = PatternFill("solid", start_color="1D6B3E", end_color="1D6B3E")
+    ws.merge_cells(start_row=1, end_row=1,
+                   start_column=sgpa_col, end_column=earned_col)
+    grp = ws.cell(row=1, column=sgpa_col, value="SGPA")
+    _style_cell(grp, font=_HEADER_FONT, fill=_SGPA_FILL,
+                alignment=_CENTER, border=_BORDER)
+
+    for c, label in [(sgpa_col, "SGPA"), (credits_col, "Total Credits"), (earned_col, "Earned Credits")]:
+        cell = ws.cell(row=2, column=c, value=label)
+        _style_cell(cell, font=_SUBHEAD_FONT, fill=_SGPA_FILL,
+                    alignment=_CENTER, border=_BORDER)
 
     ws.row_dimensions[1].height = 22
     ws.row_dimensions[2].height = 18
@@ -163,6 +180,22 @@ def _write_sheet(ws, sem_num: int, rows: list[dict]):
                 write(start_col + 2, subj.get("total",    ""), fail=failed)
                 write(start_col + 3, result,                    fail=failed)
 
+        # SGPA columns
+        sgpa_result = sgpa_calc.compute_sgpa(student.get("subjects", []), scheme, student.get("USN", ""))
+        sgpa_val    = sgpa_result["sgpa"]
+
+        _SGPA_DATA_FILL = PatternFill("solid", start_color="C6EFCE", end_color="C6EFCE")
+        _SGPA_DATA_FONT = Font(name="Arial", bold=True, size=9, color="1D6B3E")
+
+        for c, val in [
+            (sgpa_col,    f"{sgpa_val:.2f}" if sgpa_val is not None else "—"),
+            (credits_col, sgpa_result["total_credits"]),
+            (earned_col,  sgpa_result["earned_credits"]),
+        ]:
+            cell = ws.cell(row=r_idx, column=c, value=val)
+            _style_cell(cell, font=_SGPA_DATA_FONT, fill=_SGPA_DATA_FILL,
+                        alignment=_CENTER, border=_BORDER)
+
     # ------------------------------------------------
     # Column widths
     # ------------------------------------------------
@@ -172,6 +205,8 @@ def _write_sheet(ws, sem_num: int, rows: list[dict]):
         for i in range(4):
             ltr = get_column_letter(start_col + i)
             ws.column_dimensions[ltr].width = 11
+    for c in [sgpa_col, credits_col, earned_col]:
+        ws.column_dimensions[get_column_letter(c)].width = 14
 
     # Freeze header rows
     ws.freeze_panes = ws.cell(row=3, column=3)
@@ -216,7 +251,8 @@ def _write_summary_sheet(ws, all_students: list[dict], target_sem: int):
 # PUBLIC API
 # ============================================================
 
-def write_excel(all_students: list[dict], output_path: str, target_semester: int):
+def write_excel(all_students: list[dict], output_path: str,
+                target_semester: int, scheme: str = "2022"):
     """
     Writes one Excel workbook with:
       - Sheet per semester (target + any backlog semesters found)
@@ -229,9 +265,7 @@ def write_excel(all_students: list[dict], output_path: str, target_semester: int
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-    # ------------------------------------------------
-    # Bucket students by semester
-    # ------------------------------------------------
+
     from collections import defaultdict
     semester_rows: dict[int, list[dict]] = defaultdict(list)
 
@@ -243,13 +277,10 @@ def write_excel(all_students: list[dict], output_path: str, target_semester: int
                 "subjects": subjects,
             })
 
-    # ------------------------------------------------
-    # Build workbook
-    # ------------------------------------------------
-    wb = Workbook()
-    wb.remove(wb.active)   # remove default empty sheet
 
-    # Target semester first, then others sorted
+    wb = Workbook()
+    wb.remove(wb.active)
+    
     ordered_sems = sorted(
         semester_rows.keys(),
         key=lambda s: (s != target_semester, s)
@@ -257,16 +288,14 @@ def write_excel(all_students: list[dict], output_path: str, target_semester: int
 
     for sem in ordered_sems:
         ws = wb.create_sheet(title=f"Sem {sem}")
-        _write_sheet(ws, sem, semester_rows[sem])
+        _write_sheet(ws, sem, semester_rows[sem], scheme)
         log.info(f"Wrote sheet 'Sem {sem}' with {len(semester_rows[sem])} rows.")
 
-    # Summary sheet
+
     ws_summary = wb.create_sheet(title="Summary")
     _write_summary_sheet(ws_summary, all_students, target_semester)
 
-    # ------------------------------------------------
-    # Save with PermissionError fallback
-    # ------------------------------------------------
+
     try:
         wb.save(output_path)
         log.info(f"Excel saved: {output_path}")
@@ -274,6 +303,5 @@ def write_excel(all_students: list[dict], output_path: str, target_semester: int
         fallback = output_path.replace(".xlsx", "_backup.xlsx")
         wb.save(fallback)
         log.error(
-            f"Output file was open in Excel — could not overwrite. "
-            f"Saved to fallback: {fallback}"
+            f"Output file was open — saved to fallback: {fallback}"
         )

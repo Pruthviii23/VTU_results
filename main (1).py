@@ -4,8 +4,8 @@ VTU Results Scraper
 Just run:
     python main.py
 
-You will be prompted for the semester number.
-Everything else (USN file, output path) uses the defaults in config.py.
+You will be prompted for scheme and semester.
+Everything else uses the defaults in config.py.
 """
 
 import os
@@ -21,62 +21,27 @@ import checkpoint as ckpt
 import browser
 import scraper
 import exporter
+import report
+
 
 # ============================================================
-# LOGGING SETUP
+# LOGGING  — file only during scraping so progress bar is clean
 # ============================================================
 
 os.makedirs(os.path.dirname(config.LOG_FILE) or ".", exist_ok=True)
 
 logging.basicConfig(
-    level   = logging.INFO,
-    format  = "%(asctime)s [%(levelname)s] %(name)s — %(message)s",
-    datefmt = "%Y-%m-%d %H:%M:%S",
+    level    = logging.INFO,
+    format   = "%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt  = "%Y-%m-%d %H:%M:%S",
     handlers = [
         logging.FileHandler(config.LOG_FILE, encoding="utf-8"),
-        # StreamHandler intentionally omitted during scraping —
-        # log lines would break the live progress bar.
-        # All activity is written to LOG_FILE in real time.
+        # StreamHandler intentionally omitted — log lines break the live
+        # progress bar.  All activity is captured in LOG_FILE in real time.
     ]
 )
 
 log = logging.getLogger("main")
-
-
-# ============================================================
-# HELPERS
-# ============================================================
-
-def load_usn_list(path: str) -> list[str]:
-    df = pd.read_excel(path, dtype=str)
-
-    if "USN" not in df.columns:
-        raise ValueError(f"'USN' column not found in {path}. Columns found: {df.columns.tolist()}")
-
-    usns = df["USN"].dropna().str.strip().str.upper().tolist()
-
-    # Deduplicate while preserving order
-    seen, unique = set(), []
-    for u in usns:
-        if u not in seen:
-            seen.add(u)
-            unique.append(u)
-
-    duplicates = len(usns) - len(unique)
-    if duplicates:
-        log.warning(f"{duplicates} duplicate USN(s) removed from input list.")
-
-    log.info(f"Loaded {len(unique)} unique USNs from {path}")
-    return unique
-
-
-def write_failed(failed: list[str], path: str):
-    if not failed:
-        return
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w") as f:
-        f.write("\n".join(failed))
-    log.warning(f"{len(failed)} failed USN(s) written to {path}")
 
 
 # ============================================================
@@ -85,28 +50,24 @@ def write_failed(failed: list[str], path: str):
 
 class Progress:
     """
-    Prints a live-updating progress bar to the terminal.
+    Live single-line progress bar.
 
-    Example output:
-      [████████████░░░░░░░░]  60%  12/20  ✓ 11  ✗ 1  ETA 00:01:24  1AM22AI067
+      [████████████░░░░░░░░]  60%  12/20  ✓11 ✗1  ETA 00:01:24  solving captcha  1AM22AI067
     """
 
     BAR_WIDTH = 20
 
     def __init__(self, total: int, start_index: int = 0):
-        self.total      = total
-        self.done       = 0          # USNs processed (success + fail)
-        self.success    = 0
-        self.failed     = 0
-        self.current    = ""         # current USN being processed
-        self.status     = ""         # short status tag e.g. "solving captcha"
-        self._start     = time.time()
-        self._start_idx = start_index   # for offset display when resuming
-
-    # ---- update calls ----------------------------------------
+        self.total     = total
+        self.done      = 0
+        self.success   = 0
+        self.failed    = 0
+        self.current   = ""
+        self.status    = ""
+        self._start    = time.time()
+        self._start_idx = start_index
 
     def update(self, usn: str, status: str = ""):
-        """Call at the start of each USN."""
         self.current = usn
         self.status  = status
         self._render()
@@ -114,13 +75,13 @@ class Progress:
     def mark_success(self):
         self.done    += 1
         self.success += 1
-        self.status   = "✓ scraped"
+        self.status   = "scraped"
         self._render()
 
     def mark_failed(self):
         self.done   += 1
         self.failed += 1
-        self.status  = "✗ failed"
+        self.status  = "failed"
         self._render()
 
     def set_status(self, status: str):
@@ -128,7 +89,6 @@ class Progress:
         self._render()
 
     def finish(self):
-        """Print final summary line and move to next line."""
         elapsed = self._elapsed_str()
         acc     = self.success / self.done if self.done else 0
         print(
@@ -137,10 +97,8 @@ class Progress:
             f"{self.failed} failed  "
             f"Accuracy {acc:.0%}  "
             f"Time {elapsed}"
-            + " " * 20   # clear any trailing chars
+            + " " * 20
         )
-
-    # ---- internal --------------------------------------------
 
     def _elapsed_str(self) -> str:
         secs = int(time.time() - self._start)
@@ -149,8 +107,7 @@ class Progress:
     def _eta_str(self) -> str:
         if self.done == 0:
             return "--:--:--"
-        elapsed  = time.time() - self._start
-        per_usn  = elapsed / self.done
+        per_usn   = (time.time() - self._start) / self.done
         remaining = (self.total - self.done) * per_usn
         return str(datetime.timedelta(seconds=int(remaining)))
 
@@ -161,61 +118,81 @@ class Progress:
     def _render(self):
         pct      = int(100 * self.done / self.total) if self.total else 0
         absolute = f"{self._start_idx + self.done}/{self._start_idx + self.total}"
-        status   = self.status[:18].ljust(18)   # fixed width so bar doesn't jump
-        usn      = self.current
-
+        status   = self.status[:18].ljust(18)
         line = (
             f"\r  [{self._bar()}] {pct:>3}%  "
             f"{absolute}  "
             f"✓{self.success} ✗{self.failed}  "
             f"ETA {self._eta_str()}  "
-            f"{status}  {usn}"
+            f"{status}  {self.current}"
         )
-        # \r overwrites the same line; flush ensures it appears immediately
         print(line, end="", flush=True)
 
 
 # ============================================================
-# INTERACTIVE PROMPT
+# INTERACTIVE PROMPTS
 # ============================================================
 
-def prompt_semester() -> int:
-    """
-    Asks the user to pick a semester interactively.
-    Keeps re-asking until a valid number is entered.
-    """
-    valid = sorted(config.SEMESTER_URLS.keys())
+def prompt_scheme(existing: str | None = None) -> str:
+    """Ask user to pick a scheme year. Skipped if resuming."""
+    if existing:
+        print(f"\n  Resuming with scheme: {existing}")
+        return existing
+
+    valid = sorted(config.SUBJECT_CREDITS.keys())
 
     print("\n" + "=" * 45)
     print("       VTU Results Scraper")
     print("=" * 45)
-    print(f"  Available semesters: {valid}")
-    print("=" * 45)
+    print(f"  Available schemes : {valid}")
 
     while True:
         try:
-            raw = input("\n  Enter semester number: ").strip()
-            sem = int(raw)
-            if sem in valid:
-                return sem
-            print(f"  ✗ '{sem}' is not a valid semester. Choose from {valid}.")
-        except ValueError:
-            print(f"  ✗ Please enter a number (e.g. 5).")
+            raw = input("\n  Enter scheme year (e.g. 2022): ").strip()
+            if raw in valid:
+                return raw
+            print(f"  ✗ '{raw}' not recognised. Choose from {valid}.")
         except (KeyboardInterrupt, EOFError):
             print("\n\n  Cancelled. Exiting.")
             sys.exit(0)
 
 
-def prompt_resume() -> bool:
-    """
-    If a checkpoint exists, asks whether to resume or restart.
-    Returns True to resume, False to restart from scratch.
-    Skipped entirely if no checkpoint exists.
-    """
-    if not os.path.exists(config.CHECKPOINT_FILE):
-        return True   # nothing to resume, irrelevant
+def prompt_semester(existing: int | None = None) -> int:
+    """Ask user to pick a semester. Skipped if resuming."""
+    if existing is not None:
+        print(f"  Resuming with semester: {existing}")
+        return existing
 
-    print("\n  A previous run was interrupted.")
+    valid = sorted(config.SEMESTER_URLS.keys())
+    print(f"\n  Available semesters: {valid}")
+
+    while True:
+        try:
+            raw = input("  Enter semester number: ").strip()
+            sem = int(raw)
+            if sem in valid:
+                return sem
+            print(f"  ✗ '{sem}' not valid. Choose from {valid}.")
+        except ValueError:
+            print("  ✗ Please enter a number (e.g. 5).")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\n  Cancelled. Exiting.")
+            sys.exit(0)
+
+
+def prompt_resume(ckpt_data: dict | None) -> bool:
+    """
+    If a checkpoint exists, ask whether to resume or restart.
+    Returns True to resume, False to restart.
+    Skipped entirely if no checkpoint.
+    """
+    if ckpt_data is None:
+        return False
+
+    print(
+        f"\n  A previous run was interrupted after USN {ckpt_data['usn']}  "
+        f"(Scheme {ckpt_data['scheme']}, Sem {ckpt_data['semester']})."
+    )
 
     while True:
         try:
@@ -231,63 +208,102 @@ def prompt_resume() -> bool:
 
 
 # ============================================================
+# HELPERS
+# ============================================================
+
+def load_usn_list(path: str) -> list[str]:
+    df = pd.read_excel(path, dtype=str)
+    if "USN" not in df.columns:
+        raise ValueError(
+            f"'USN' column not found in {path}. "
+            f"Columns: {df.columns.tolist()}"
+        )
+    usns = df["USN"].dropna().str.strip().str.upper().tolist()
+
+    seen, unique = set(), []
+    for u in usns:
+        if u not in seen:
+            seen.add(u)
+            unique.append(u)
+
+    dupes = len(usns) - len(unique)
+    if dupes:
+        log.warning(f"{dupes} duplicate USN(s) removed.")
+
+    log.info(f"Loaded {len(unique)} unique USNs from {path}")
+    return unique
+
+
+def write_failed(failed: list[str], path: str):
+    if not failed:
+        return
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w") as f:
+        f.write("\n".join(failed))
+    log.warning(f"{len(failed)} failed USN(s) written to {path}")
+
+
+# ============================================================
 # MAIN
 # ============================================================
 
 def main():
-    semester  = prompt_semester()
-    do_resume = prompt_resume()
 
-    print(f"\n  Starting scraper for Semester {semester}...")
-    print(f"  USN file : {config.USN_FILE}")
-    print(f"  Output   : {config.OUTPUT_FILE}\n")
+    # ── Load checkpoint (if any) ─────────────────────────────
+    ckpt_data = ckpt.load_checkpoint(config.CHECKPOINT_FILE)
+    resuming  = prompt_resume(ckpt_data)
 
-    issues = config.validate()
+    # ── Scheme & semester ────────────────────────────────────
+    if resuming and ckpt_data:
+        scheme   = prompt_scheme(existing=ckpt_data["scheme"])
+        semester = prompt_semester(existing=ckpt_data["semester"])
+    else:
+        scheme   = prompt_scheme()
+        semester = prompt_semester()
+
+    print(f"\n  USN file : {config.USN_FILE}")
+    print(f"  Output   : {config.OUTPUT_FILE}")
+    print(f"  Log      : {config.LOG_FILE}\n")
+
+    # ── Startup validation ───────────────────────────────────
+    issues = config.validate(scheme)
     for issue in issues:
-        log.warning(f"CONFIG WARNING: {issue}")
+        print(f"  ⚠  {issue}")
+        log.warning(f"CONFIG: {issue}")
 
     if semester not in config.SEMESTER_URLS:
-        log.error(f"Semester {semester} not in SEMESTER_URLS. Exiting.")
+        print(f"\n  ✗ Semester {semester} has no URL configured. Exiting.")
         sys.exit(1)
 
     url = config.SEMESTER_URLS[semester]
-    log.info(f"Semester {semester} → {url}")
+    log.info(f"Scheme={scheme}  Semester={semester}  URL={url}")
 
-    # ------------------------------------------------
-    # Load USNs
-    # ------------------------------------------------
+    # ── USN list ─────────────────────────────────────────────
     usn_list = load_usn_list(config.USN_FILE)
 
-    # ------------------------------------------------
-    # Checkpoint / resume
-    # ------------------------------------------------
-    if not do_resume:
-        start_idx = 0
-        log.info("User chose to restart from scratch.")
+    # ── Start index ──────────────────────────────────────────
+    if resuming and ckpt_data:
+        start_idx = ckpt.resolve_start_index(usn_list, ckpt_data["usn"])
     else:
-        last_usn  = ckpt.load_checkpoint(config.CHECKPOINT_FILE)
-        start_idx = ckpt.resolve_start_index(usn_list, last_usn)
+        start_idx = 0
+        log.info("Starting from scratch.")
 
     remaining = usn_list[start_idx:]
-    log.info(f"Processing {len(remaining)} USN(s) (starting at index {start_idx}).")
+    log.info(f"Processing {len(remaining)} USN(s) from index {start_idx}.")
 
-    # ------------------------------------------------
-    # Browser init
-    # ------------------------------------------------
+    # ── Browser ──────────────────────────────────────────────
     driver = browser.init_driver()
     driver.get(url)
     time.sleep(config.DELAY)
 
-    all_students : list[dict] = []
-    failed_usns  : list[str]  = []
+    all_students: list[dict] = []
+    failed_usns:  list[str]  = []
 
-    # ------------------------------------------------
-    # Main loop
-    # ------------------------------------------------
+    # ── Main loop ─────────────────────────────────────────────
     total    = len(remaining)
     progress = Progress(total, start_index=start_idx)
 
-    print()  # blank line before progress bar starts
+    print()   # blank line before bar
 
     for i, usn in enumerate(remaining, 1):
         log.info(f"--- [{i}/{total}] {usn} ---")
@@ -295,7 +311,7 @@ def main():
 
         success = False
 
-        for usn_attempt in range(1, config.MAX_USN_RETRIES + 1):
+        for attempt in range(1, config.MAX_USN_RETRIES + 1):
             try:
                 driver.get(url)
                 time.sleep(config.DELAY)
@@ -308,14 +324,17 @@ def main():
 
                 if data is not None:
                     all_students.append(data)
-                    ckpt.save_checkpoint(config.CHECKPOINT_FILE, usn)
+                    # Checkpoint AFTER successful append
+                    ckpt.save_checkpoint(
+                        config.CHECKPOINT_FILE, usn, scheme, semester
+                    )
                     success = True
                     progress.mark_success()
                     break
 
                 else:
-                    log.warning(f"[{usn}] Scrape returned None (attempt {usn_attempt})")
-                    progress.set_status(f"retry {usn_attempt}")
+                    log.warning(f"[{usn}] Scrape returned None (attempt {attempt})")
+                    progress.set_status(f"retry {attempt}")
 
             except ValueError as e:
                 log.error(str(e))
@@ -326,9 +345,8 @@ def main():
                 break
 
             except Exception as e:
-                log.error(f"[{usn}] Unexpected error (attempt {usn_attempt}): {e}",
-                          exc_info=True)
-                progress.set_status(f"error, retry {usn_attempt}")
+                log.error(f"[{usn}] Error attempt {attempt}: {e}", exc_info=True)
+                progress.set_status(f"error, retry {attempt}")
                 driver.get(url)
                 time.sleep(config.DELAY)
 
@@ -339,32 +357,38 @@ def main():
 
     progress.finish()
 
-    # ------------------------------------------------
-    # Cleanup
-    # ------------------------------------------------
+    # ── Cleanup ───────────────────────────────────────────────
     driver.quit()
     log.info("Browser closed.")
 
     accuracy = browser.get_captcha_accuracy()
-    log.info(f"Captcha accuracy this run: {accuracy:.1%}")
+    log.info(f"Captcha accuracy: {accuracy:.1%}")
 
-    # ------------------------------------------------
-    # Write outputs
-    # ------------------------------------------------
+    # ── Write outputs ─────────────────────────────────────────
+    print("\n  Writing outputs...")
+
     if all_students:
-        exporter.write_excel(all_students, config.OUTPUT_FILE, semester)
+        exporter.write_excel(all_students, config.OUTPUT_FILE, semester, scheme)
+        print(f"  Excel       → {config.OUTPUT_FILE}")
+
+        pdf_path = config.OUTPUT_FILE.replace(".xlsx", "_report.pdf")
+        batch    = f"Scheme {scheme}"
+        report.write_pdf(all_students, pdf_path, semester, scheme, batch)
+
     else:
-        log.warning("No student data collected — Excel not written.")
+        log.warning("No student data collected — outputs not written.")
+        print("  ⚠  No data collected.")
 
     write_failed(failed_usns, config.FAILED_FILE)
 
     if not failed_usns:
         ckpt.clear_checkpoint(config.CHECKPOINT_FILE)
 
-    log.info(
-        f"\nDone. Scraped: {len(all_students)} | "
-        f"Failed: {len(failed_usns)} | "
-        f"Captcha accuracy: {accuracy:.1%}"
+    print(
+        f"\n  Scraped : {len(all_students)}"
+        f"   Failed : {len(failed_usns)}"
+        f"   Captcha accuracy : {accuracy:.1%}"
+        f"   Log : {config.LOG_FILE}"
     )
 
 
