@@ -345,35 +345,32 @@ SUBJECT_CREDITS: dict[str, dict[str, list]] = {
         "BCI714":    [3, 100],   # wildcard: BCI714x
         "BCI755":    [3, 100],   # wildcard: BCI755x
         "BCI786":    [6, 100],
-
-        "BEE755A":    [3, 100],   # EC elective wildcard variant : BEE755x
-        "BCV755":    [3, 100],   # CS/IS/AI&ML/DS elective wildcard variant: BCV755x
+ 
         # ── Sem 8 ───────────────────────────────────────────
         "BCS801":    [3, 100],   # wildcard: BCS801x
         "BCS802":    [3, 100],   # wildcard: BCS802x
-        "BCS803":    [10, 100],
+        "BCS803":    [10, 200],
  
         "BCD801":    [3, 100],   # wildcard: BCD801x
         "BCD802":    [3, 100],   # wildcard: BCD802x
-        "BCD803":    [10, 100],
+        "BCD803":    [10, 200],
  
         "BIS801":    [3, 100],   # wildcard: BIS801x
         "BIS802":    [3, 100],   # wildcard: BIS802x
-        "BIS803":    [10, 100],
+        "BIS803":    [10, 200],
  
         "BAI801":    [3, 100],   # wildcard: BAI801x
         "BAI802":    [3, 100],   # wildcard: BAI802x
-        "BAI803":    [10, 100],
+        "BAI803":    [10, 200],
+        "BINT803":   [10, 200],  # wildcard: BINT803x — alternate internship code (Sem 8)
  
         "BAD801":    [3, 100],   # wildcard: BAD801x
         "BAD802":    [3, 100],   # wildcard: BAD802x
-        "BAD803":    [10, 100],
+        "BAD803":    [10, 200],
  
         "BCI801":    [3, 100],   # wildcard: BCI801x
         "BCI802":    [3, 100],   # wildcard: BCI802x
-        "BCI803":    [10, 100],
-
-        "BINT803":   [10, 100],  # Internship (sem 8)
+        "BCI803":    [10, 200],
     },
  
     # ── 2025 scheme placeholder ──────────────────────────────
@@ -552,3 +549,4 @@ def validate(scheme: str) -> list[str]:
         issues.append(f"Scheme '{scheme}' has no subject entries yet.")
  
     return issues
+ 

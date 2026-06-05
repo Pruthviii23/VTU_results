@@ -96,6 +96,7 @@ def scrape_student(driver, usn: str, target_semester: int) -> dict | None:
         # ------------------------------------------------
         student_data = {"USN": usn, "Name": "", "semesters": {}}
 
+        # ── Layout A: <table><tr><td> — used by most portals (Sem 1–7) ──
         for row in soup.find_all("tr"):
             text = row.get_text()
             tds  = row.find_all("td")
@@ -105,6 +106,23 @@ def scrape_student(driver, usn: str, target_semester: int) -> dict | None:
                 student_data["Name"] = tds[1].get_text(strip=True).lstrip(":").strip()
             if "University Seat Number" in text:
                 student_data["USN"]  = tds[1].get_text(strip=True).lstrip(":").strip().upper()
+
+        # ── Layout B: divTableRow/divTableCell — used by Sem 8 portal ──
+        # Only run if Layout A didn't find the name (avoids double-parsing)
+        if not student_data["Name"]:
+            for row in soup.find_all("div", class_="divTableRow"):
+                cells = row.find_all("div", class_="divTableCell")
+                if len(cells) < 2:
+                    continue
+                label = cells[0].get_text(strip=True)
+                value = cells[1].get_text(strip=True)
+                if "Student Name" in label:
+                    student_data["Name"] = value.strip()
+                if "University Seat Number" in label:
+                    student_data["USN"]  = value.strip().upper()
+
+        if not student_data["Name"]:
+            log.warning(f"[{usn}] Could not parse student name — page layout may have changed.")
 
         # ------------------------------------------------
         # Semester blocks
@@ -164,3 +182,4 @@ def scrape_student(driver, usn: str, target_semester: int) -> dict | None:
     except Exception as e:
         log.error(f"[{usn}] Scrape error: {e}", exc_info=True)
         return None
+    
