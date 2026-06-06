@@ -373,9 +373,69 @@ SUBJECT_CREDITS: dict[str, dict[str, list]] = {
         "BCI803":    [10, 200],
     },
  
-    # ── 2025 scheme placeholder ──────────────────────────────
-    # Fill this in when you have the syllabus documents.
-    "2025": {},
+    "2025": {
+ 
+    # ──────────────────────────────────────────────────────
+    # SEMESTER 1 — CHEMISTRY CYCLE
+    # Stream variants for Mathematics: x = S, C, M, E
+    # All resolve to same credits — wildcard handles the rest
+    # ──────────────────────────────────────────────────────
+ 
+    "1BMATS101": [4, 100],   # Applied Mathematics-I (CSE stream)
+    "1BMATC101": [4, 100],   # Applied Mathematics-I (Civil stream)
+    "1BMATM101": [4, 100],   # Applied Mathematics-I (Mech stream)
+    "1BMATE101": [4, 100],   # Applied Mathematics-I (ECE stream)
+ 
+    "1BCHES102": [4, 100],   # Applied Chemistry for Smart Systems (CSE stream)
+    "1BCHEC102": [4, 100],   # Applied Chemistry for Smart Systems (Civil stream)
+    "1BCHEM102": [4, 100],   # Applied Chemistry for Smart Systems (Mech stream)
+    "1BCHEE102": [4, 100],   # Applied Chemistry for Smart Systems (ECE stream)
+ 
+    "1BCEDC103": [3, 100],   # Computer-Aided Engineering Drawing
+ 
+    "1BESC104A": [3, 100],   # Engineering Science Elective-I (Intro to Civil)
+    "1BESC104B": [3, 100],   # Engineering Science Elective-I (Electrical)
+    "1BESC104C": [3, 100],   # Engineering Science Elective-I (Electronics)
+ 
+    "1BPLC105E": [3, 100],   # Programming Language Course (C Programming)
+    "1BPLC105A": [3, 100],   # Programming Language Course (Python)
+    "1BPLC105B": [3, 100],   # Programming Language Course (C++)
+    "1BPLC105C": [3, 100],   # Programming Language Course (Java)
+ 
+    "1BHSM106":  [1, 100],   # Communicative / Professional English
+ 
+    "1BPOPL107": [1, 50],    # Programming Laboratory
+ 
+    "1BKSK108":  [1, 50],    # Samskrutika Kannada
+    "1BKBK108":  [1, 50],    # Balake Kannada
+ 
+    # ──────────────────────────────────────────────────────
+    # SEMESTER 1 — PHYSICS CYCLE
+    # Same math codes as Chemistry cycle (shared)
+    # ──────────────────────────────────────────────────────
+ 
+    "1BPHYS102": [4, 100],   # Applied Physics (CSE stream)
+    "1BPHYC102": [4, 100],   # Applied Physics (Civil stream)
+    "1BPHYM102": [4, 100],   # Applied Physics (Mech stream)
+    "1BPHYE102": [4, 100],   # Applied Physics (ECE stream)
+ 
+    "1BME103":   [3, 100],   # IDEA Lab / Elements of Mechanical Engineering
+ 
+    "1BAIA104":  [3, 100],   # Introduction to AI & Foundations
+    "1BXX104":   [3, 100],   # Introduction to AI & Foundations (generic code variant)
+ 
+    "1BXX105":   [3, 100],   # Stream Specific Core Fundamental (generic)
+    "1BECE105":  [3, 100],   # Basics of Electronics (ECE stream variant)
+ 
+    "1BXXL107":  [1, 50],    # Stream Specific Lab Core (generic)
+    "1BECEL107": [1, 50],    # Electronics Lab (ECE stream variant)
+ 
+    "1BICO108":  [1, 100],   # Indian Constitution & Innovation
+ 
+    "1BSFH109":  [1, 100],   # Scientific Foundations of Health & Yoga
+ 
+},
+
 }
  
  
@@ -469,7 +529,51 @@ SUBJECT_NAMES: dict[str, dict[str, str]] = {
         "BAD714":   "Professional Elective",
         "BAD755":   "Open Elective",
     },
-    "2025": {},
+
+    "2025": {
+ 
+    "1BMATS101": "Applied Mathematics-I",
+    "1BMATC101": "Applied Mathematics-I",
+    "1BMATM101": "Applied Mathematics-I",
+    "1BMATE101": "Applied Mathematics-I",
+ 
+    "1BCHES102": "Applied Chemistry for Smart Systems",
+    "1BCHEC102": "Applied Chemistry for Smart Systems",
+    "1BCHEM102": "Applied Chemistry for Smart Systems",
+    "1BCHEE102": "Applied Chemistry for Smart Systems",
+ 
+    "1BCEDC103": "Computer-Aided Engineering Drawing",
+ 
+    "1BESC104A": "Engineering Science Elective-I (Intro to Civil)",
+    "1BESC104B": "Engineering Science Elective-I (Electrical)",
+    "1BESC104C": "Engineering Science Elective-I (Electronics)",
+ 
+    "1BPLC105E": "Programming Language Course (C Programming)",
+    "1BPLC105A": "Programming Language Course (Python)",
+    "1BPLC105B": "Programming Language Course (C++)",
+    "1BPLC105C": "Programming Language Course (Java)",
+ 
+    "1BHSM106":  "Communicative / Professional English",
+    "1BPOPL107": "Programming Laboratory",
+    "1BKSK108":  "Samskrutika Kannada",
+    "1BKBK108":  "Balake Kannada",
+ 
+    "1BPHYS102": "Applied Physics for Engineers",
+    "1BPHYC102": "Applied Physics for Engineers",
+    "1BPHYM102": "Applied Physics for Engineers",
+    "1BPHYE102": "Applied Physics for Engineers",
+ 
+    "1BME103":   "IDEA Lab / Elements of Mechanical Engineering",
+    "1BAIA104":  "Introduction to AI & Foundations",
+    "1BXX104":   "Introduction to AI & Foundations",
+    "1BXX105":   "Stream Specific Core Fundamental",
+    "1BECE105":  "Basics of Electronics",
+    "1BXXL107":  "Stream Specific Lab Core",
+    "1BECEL107": "Electronics Lab",
+    "1BICO108":  "Indian Constitution & Innovation",
+    "1BSFH109":  "Scientific Foundations of Health & Yoga",
+ 
+ },
 }
  
  
