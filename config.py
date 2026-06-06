@@ -10,7 +10,7 @@ OUTPUT_FILE     = r"VTU_results\Inp-Out\vtu_results.xlsx"
 CHECKPOINT_FILE = r"VTU_results\Inp-Out\checkpoint.txt"
 FAILED_FILE     = r"VTU_results\Inp-Out\failed_usns.txt"
 LOG_FILE        = r"VTU_results\Inp-Out\scraper.log"
-MODEL_PATH      = r"VTU_results\Inp-Out\crnn_9_prediction_model.keras"
+MODEL_PATH      = r"VTU_results\Inp-Out\crnn_10_prediction_model.keras"
 
 # ============================================================
 # SCRAPER BEHAVIOUR
