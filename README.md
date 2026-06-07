@@ -56,7 +56,7 @@ Automatically generated report containing:
 
 ### Dashboard Report
 
-![PDF Dashboard](images\dashborad.jpg)
+![PDF Dashboard](images/dashborad.jpg)
 
 ---
 
@@ -68,13 +68,13 @@ Automatically generated report containing:
 
 ### Subject-wise Analysis
 
-![Subject Analysis](images\subjects.jpg)
+![Subject Analysis](images/subjects.jpg)
 
 ---
 
 ### Student Rankings
 
-![Ranking Report](images\students.jpg)
+![Ranking Report](images/students.jpg)
 
 ---
 
