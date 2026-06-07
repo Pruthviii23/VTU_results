@@ -1,181 +1,409 @@
 # VTU Results Scraper
 
-A tool that automatically collects student results from the VTU results portal, calculates SGPA, and produces a formatted Excel sheet and a PDF summary report — all from a single list of USNs.
+### This tool automates the entire process.
+
+Give it a list of USNs.
+
+It will:
+
+✅ Open the VTU Results Portal
+
+✅ Solve captchas automatically using AI
+
+✅ Download student marks
+
+✅ Calculate SGPA
+
+✅ Generate Excel reports
+
+✅ Create a professional PDF summary
+
+✅ Resume automatically if interrupted
 
 ---
 
-## What It Does
+# What You Get (Outputs)
 
-You give it a list of student USNs. It opens the VTU results website, solves the captcha for each student using a trained AI model, collects their marks, and saves everything into two output files:
+### Excel Workbook
 
-**Excel file** — one sheet per semester found, with every subject's internal marks, external marks, total, result, and the calculated SGPA at the end of each student's row. If a student has backlogs from a previous semester, those appear in a separate sheet automatically.
+Complete marks data with:
 
-**PDF report** — a clean, three-page summary designed for HODs and faculty. Page one is an executive dashboard with key metrics and auto-generated insights. Page two is a subject-wise performance table with pass percentages and remarks. Page three ranks all students by SGPA with their classification.
-
-If the run is interrupted for any reason — power cut, network drop, anything — it picks up exactly where it left off the next time you run it. No re-scraping from the beginning.
+* Internal marks
+* External marks
+* Total marks
+* Result status
+* SGPA
+* Separate semester sheets
+* Backlog tracking
 
 ---
 
-## What You Need Before Starting
+### Faculty/HOD PDF Report
 
-**1. Python**
-Version 3.10 or higher. Check your version by opening a terminal and typing:
+Automatically generated report containing:
+
+* Overall class performance
+* Pass percentage
+* Average SGPA
+* Top performers
+* Subject-wise analysis
+* Student rankings
+* Auto-generated insights
+
+---
+
+## Example Outputs
+
+### Dashboard Report
+
+![PDF Dashboard](images\dashborad.jpg)
+
+---
+
+### Excel Results Workbook
+
+![Excel Output](images/excel.jpg)
+
+---
+
+### Subject-wise Analysis
+
+![Subject Analysis](images\subjects.jpg)
+
+---
+
+### Student Rankings
+
+![Ranking Report](images\students.jpg)
+
+---
+
+# How Much Time Does It Save?
+
+| Task                     | Manual        | Using This Tool |
+| ------------------------ | ------------- | --------------- |
+| Check 60 Student Results | 1–2 Hours     | 3-5 minutes     |
+| Calculate SGPA           | 20–30 Minutes | 1 minute        |
+| Prepare Excel Sheet      | 30–60 Minutes | 1 minute        |
+| Create Summary Report    | 20–30 Minutes | 1 minute        |
+
+### Over all time taken
+
+**5-7 minutes per batch**
+
+---
+
+# Quick Start (5 Minutes)
+
+## Step 1: Download the Project
+
+### Option A — Download ZIP
+
+1. Star the project.
+2. Click the green **Code** button.
+3. Select **Download ZIP**.
+4. Extract the ZIP file.
+
+### Option B — Clone Using Git
+
+```bash
+git clone https://github.com/YOUR_USERNAME/vtu-results-scraper.git
+cd vtu-results-scraper
 ```
+
+---
+
+## Step 2: Install Python
+
+Download Python:
+
+https://www.python.org/downloads/
+
+Verify installation:
+
+```bash
 python --version
 ```
-If you don't have it, download it from [python.org](https://www.python.org/downloads/).
 
-**2. Google Chrome**
-The scraper runs through Chrome. Make sure it's installed and up to date.
+Python 3.10 or newer is recommended.
 
-**3. ChromeDriver**
-This is what lets Python control Chrome. It must match your Chrome version.
-Download it from [chromedriver.chromium.org](https://chromedriver.chromium.org/downloads) and place the file in the same folder as the project, or add it to your system PATH.
 
-**4. Your USN list**
-An Excel file (`.xlsx`) with a column named exactly `USN`. One USN per row. Place it at:
-```
-vtu_results/
-└── Inp-Out/
-    └── usn_list.xlsx    ← your file goes here
-```
+## Step 3: Download ChromeDriver
+
+Download ChromeDriver matching your Chrome version:
+
+https://chromedriver.chromium.org/downloads
+
+Place it in the project folder.
 
 ---
 
-## Installation
+## Step 4: Install Dependencies
 
-Open a terminal, navigate to the project folder, and run this once to install all required packages:
+Open Command Prompt or Terminal inside the project folder.
 
-```
+Run:
+
+```bash
 pip install selenium pandas openpyxl beautifulsoup4 tensorflow opencv-python pillow reportlab matplotlib
 ```
 
-That's it. No other setup required.
+---
+
+## Step 5: Add Your USN List
+
+Create:
+
+```text
+Inp-Out/usn_list.xlsx
+```
+
+The Excel file must contain a column named:
+
+```text
+USN
+```
+
+Example:
+
+| USN        |
+| ---------- |
+| 1AM22AI001 |
+| 1AM22AI002 |
+| 1AM22AI003 |
 
 ---
 
-## Folder Structure
+## Step 6: Run
 
-Once everything is in place, your folder should look like this:
-
+```bash
+python main.py
 ```
+
+Choose:
+
+```text
+Available schemes : ['2022', '2025']
+Enter scheme year : 2022
+
+Available semesters : [1,2,3,4,5,6,7,8]
+Enter semester number : 5
+```
+
+That's it.
+
+The scraper starts automatically.
+
+---
+
+# Live Progress Tracking
+
+While running, you'll see:
+
+```text
+[████████████░░░░░░░░] 60%
+
+12/20
+
+✓11 Passed
+✗1 Failed
+
+ETA 00:01:24
+
+Currently Scraping:
+1AM22AI067
+```
+
+---
+
+# Generated Files
+
+After completion:
+
+```text
+Inp-Out/
+
+├── vtu_results.xlsx
+├── vtu_results_report.pdf
+├── failed_usns.txt
+├── scraper.log
+└── checkpoint.txt
+```
+
+---
+
+# Smart Resume Feature
+
+Power cut?
+
+Chrome crash?
+
+Internet failure?
+
+No problem.
+
+When restarted:
+
+```bash
+python main.py
+```
+
+The program detects the last completed student automatically.
+
+```text
+Previous session detected.
+
+Resume from where you left off? [Y/n]
+```
+
+Press:
+
+```text
+Y
+```
+
+and continue.
+
+No re-scraping required.
+
+---
+
+# AI-Powered Captcha Solver
+
+The VTU portal requires captcha verification.
+
+This project includes a trained OCR model that automatically solves captchas during scraping.
+
+### Benefits
+
+* No manual captcha entry
+* Fully automated execution
+* Faster processing
+* Higher throughput
+
+---
+
+# Project Structure
+
+```text
 vtu_results/
+
+├── Inp-Out/
+│   ├── usn_list.xlsx
+│   ├── vtu_results.xlsx
+│   └── vtu_results_report.pdf
 │
-└── In/Ou/                                  ← Inputs and outputs folder
-    └── usn_list.xlsx                       ← your USN list goes here
-    └── vtu_results.xlsx                    ← results list
-    └── vtu_results_report.pfd              ← report PDF 
+├── crnn_10_prediction_model.keras
 │
-├── crnn_10_prediction_model.keras          ← captcha model
-│
-├── main.py                                 ← the file you run
-├── config.py                               ← settings and subject credits
-├── browser.py                              ← handles Chrome and captcha solving
-├── scraper.py                              ← reads the results page
-├── exporter.py                             ← builds the Excel file
-├── report.py                               ← builds the PDF report
-├── sgpa.py                                 ← calculates SGPA
-├── checkpoint.py                           ← handles resume on crash
-├── ocr.py                                  ← runs the AI model
+├── main.py
+├── browser.py
+├── scraper.py
+├── exporter.py
+├── report.py
+├── sgpa.py
+├── checkpoint.py
+├── ocr.py
+├── config.py
 │
 ├── checkpoint.txt
 ├── scraper.log
-└──failed_usn.txt
-
-```
-
-## How to Run
-
-Open a terminal inside the `vtu_results` folder and type:
-
-```
-python main.py
-```
-
-You will be asked two questions:
-
-**1. Scheme year**
-This refers to the VTU syllabus scheme your students are under. Currently supported: `2022`. Type the year and press Enter.
-
-```
-  Available schemes : ['2022', '2025']
-  Enter scheme year (e.g. 2022): 2022
-```
-
-**2. Semester number**
-Enter which semester's results you want to collect (1 through 8).
-
-```
-  Available semesters: [1, 2, 3, 4, 5, 6, 7, 8]
-  Enter semester number: 5
-```
-
-After that, Chrome will open automatically and the scraper will start working through your USN list. You will see a live progress bar in the terminal showing how many students have been processed, how many passed or failed, and an estimated time remaining.
-
-```
-  [████████████░░░░░░░░]  60%  12/20  ✓11 ✗1  ETA 00:01:24  scraping  1XX22XX067
-```
-
-When it finishes:
-
-```
-  Done — 19 scraped  1 failed  Accuracy 95%  Time 0:03:42
-
-  Writing outputs...
-  Excel       → VTU/vtu_results.xlsx
-  PDF report  → VTU/vtu_results_report.pdf
+└── failed_usns.txt
 ```
 
 ---
 
-## Output Files
-
-All outputs are saved inside the `VTU/` folder.
-
-| File | What it contains |
-|---|---|
-| `vtu_results.xlsx` | Full marks data, one sheet per semester, SGPA per student |
-| `vtu_results_report.pdf` | Executive summary report for faculty/HOD |
-| `failed_usns.txt` | List of USNs that could not be scraped |
-| `scraper.log` | Detailed log of everything that happened during the run |
-| `checkpoint.txt` | Tracks progress — deleted automatically on clean finish |
+# If any error or issue occurs, look into the 'scraper.log' file. It has a detailed log of things happening. 
 
 ---
 
-## If Something Goes Wrong Mid-Run
+# Common Questions
 
-If the scraper stops for any reason — Chrome crash, network issue, your laptop ran out of battery — just run it again:
+### Is this free?
 
-```
-python main.py
-```
+Yes.
 
-It will detect the checkpoint and ask:
-
-```
-  A previous run was interrupted after USN 1AM22AI045 (Scheme 2022, Sem 5).
-  Resume from where it stopped? [Y/n]:
-```
-
-Press Enter (or type Y) and it picks up from the next USN. Type N to start over from scratch.
+This project is completely open source.
 
 ---
 
-## If Some USNs Failed
+### Do I need programming knowledge?
 
-After a run, check `VTU/failed_usns.txt`. USNs end up there for two reasons:
+No.
 
-**The USN doesn't exist on the portal** — the VTU website returned an "not available" message. This usually means the student's results haven't been published yet, or the USN was entered incorrectly in your list.
+If you can:
 
-**Captcha could not be solved** — the AI model failed to read the captcha after several attempts. This can happen if the captcha style changed on the VTU portal.
+1. Download a ZIP file
+2. Open a terminal
+3. Run one command
 
-You can re-run failed USNs by replacing `usn_list.xlsx` with just the failed USNs and running again.
+you can use this tool.
 
 ---
 
-## Notes
+### Can I use it for an entire class?
 
-- The scraper runs one USN at a time. It will not run faster by opening multiple windows — the VTU portal rate-limits requests.
-- Keep the Chrome window visible while it runs. Do not minimise it to the taskbar on some systems, as this can cause screenshot capture to fail.
-- The PDF report is designed for batches of students from the same class and semester. Running it across mixed branches in one go will produce a combined report — which may or may not be what you want.
-- All activity during a run is logged in detail to `VTU/scraper.log`. If something unexpected happens, that file is the first place to look.
+Yes.
+
+The tool is designed for batch processing.
+
+---
+
+### What happens if some USNs fail?
+
+Failed entries are saved automatically in:
+
+```text
+failed_usns.txt
+```
+
+You can rerun only those students later.
+
+---
+
+### Does it calculate SGPA automatically?
+
+Yes.
+
+SGPA is calculated and added to the Excel output automatically.
+
+---
+
+# Roadmap
+
+Planned features:
+
+* CGPA calculation
+* Multi-semester analytics
+* Branch comparison reports
+* Department-wide dashboards
+* GUI version (No terminal required)
+* One-click executable release
+
+---
+
+# Contributing
+
+Contributions are welcome.
+
+Feel free to:
+
+* Open issues
+* Submit pull requests
+* Suggest features
+* Improve documentation
+
+---
+
+# Support the Project
+
+If this project saved you time:
+
+⭐ Star this repository
+
+🍴 Fork it
+
+📢 Share it with other VTU faculty members
+
+Every star helps the project reach more educators.
+
+---
