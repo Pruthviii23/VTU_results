@@ -139,9 +139,13 @@ def _remark(pct: float) -> tuple[str, object]:
 # ============================================================
 
 def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
-    sub_stats   = defaultdict(lambda: {"total": 0, "pass": 0, "fail": 0, "marks": []})
-    sgpa_values = []
-    ranked      = []
+    sub_stats     = defaultdict(lambda: {"total": 0, "pass": 0, "fail": 0, "absent": 0, "marks": []})
+    sgpa_values   = []
+    ranked        = []
+    absent_report = []   # list of {USN, Name, subjects: [code, name]}
+
+    _ABSENT = {"A", "AB", "ABSENT"}
+    _FAIL   = {"F", "W", "--"}
 
     for student in all_students:
         sem_subjects = student["semesters"].get(semester, [])
@@ -159,18 +163,40 @@ def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
                 "SGPA": sgpa_v,
             })
 
+        # Collect absent subjects for this student
+        absent_subjects = []
+
         for subj in sem_subjects:
-            code   = subj["code"]
+            code       = subj["code"]
             result_val = subj.get("result", "").upper()
-            try:
-                sub_stats[code]["marks"].append(int(subj.get("total", "")))
-            except (ValueError, TypeError):
-                pass
+
             sub_stats[code]["total"] += 1
+
             if result_val == "P":
                 sub_stats[code]["pass"] += 1
-            elif result_val == "F":
+                try:
+                    sub_stats[code]["marks"].append(int(subj.get("total", "")))
+                except (ValueError, TypeError):
+                    pass
+            elif result_val in _ABSENT:
+                sub_stats[code]["absent"] += 1
+                absent_subjects.append({
+                    "code": code,
+                    "name": subj.get("name", code),
+                })
+            elif result_val in _FAIL:
                 sub_stats[code]["fail"] += 1
+                try:
+                    sub_stats[code]["marks"].append(int(subj.get("total", "")))
+                except (ValueError, TypeError):
+                    pass
+
+        if absent_subjects:
+            absent_report.append({
+                "USN":      student["USN"],
+                "Name":     student["Name"],
+                "subjects": absent_subjects,
+            })
 
     ranked.sort(key=lambda s: s["SGPA"], reverse=True)
 
@@ -179,15 +205,15 @@ def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
     high_sgpa = max(sgpa_values) if sgpa_values else None
     low_sgpa  = min(sgpa_values) if sgpa_values else None
 
-    # Overall pass: students with no F in target semester
+    # Overall pass: no F and no A in target semester
     total_students = len(all_students)
     pass_count = sum(
         1 for s in all_students
-        if all(
-            sub.get("result", "").upper() != "F"
+        if s["semesters"].get(semester)
+        and all(
+            sub.get("result", "").upper() not in (_FAIL | _ABSENT)
             for sub in s["semesters"].get(semester, [])
         )
-        and s["semesters"].get(semester)
     )
     overall_pass_pct = round(100 * pass_count / total_students, 1) if total_students else 0
 
@@ -201,6 +227,7 @@ def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
         "low_sgpa":         low_sgpa,
         "overall_pass_pct": overall_pass_pct,
         "pass_count":       pass_count,
+        "absent_report":    absent_report,
     }
 
 
@@ -368,20 +395,21 @@ def _subject_performance(story, data: dict, scheme: str):
     story.append(Paragraph("Subject Performance Analysis", _H2))
 
     sub   = data["sub_stats"]
-    rows  = [["Code", "Subject Name", "Appeared", "Passed", "Failed", "Pass %",
-               "Avg Marks", "Remarks"]]
+    rows  = [["Code", "Subject Name", "Appeared", "Passed", "Failed", "Absent",
+               "Pass %", "Avg Marks", "Remarks"]]
 
     style_cmds = [
-        ("ALIGN",  (0, 0), (0, -1), "LEFT"),   # code left
-        ("ALIGN",  (1, 0), (1, -1), "LEFT"),   # name left
-        ("ALIGN",  (7, 0), (7, -1), "LEFT"),   # remarks left
+        ("ALIGN",  (0, 0), (0, -1), "LEFT"),
+        ("ALIGN",  (1, 0), (1, -1), "LEFT"),
+        ("ALIGN",  (8, 0), (8, -1), "LEFT"),
     ]
 
     for r_idx, code in enumerate(sorted(sub.keys()), start=1):
-        s     = sub[code]
-        total = s["total"]
+        s      = sub[code]
+        total  = s["total"]
         passed = s["pass"]
         failed = s["fail"]
+        absent = s.get("absent", 0)
         marks  = s["marks"]
 
         pct    = 100 * passed / total if total else 0
@@ -390,21 +418,23 @@ def _subject_performance(story, data: dict, scheme: str):
         remark, rem_colour = _remark(pct)
 
         rows.append([
-            code, name, total, passed, failed,
+            code, name, total, passed, failed, absent,
             f"{pct:.1f}%", avg_m, remark,
         ])
 
-        # Colour the remarks cell
-        style_cmds.append(("TEXTCOLOR", (7, r_idx), (7, r_idx), rem_colour))
-        style_cmds.append(("FONTNAME",  (7, r_idx), (7, r_idx), "Helvetica-Bold"))
+        style_cmds.append(("TEXTCOLOR", (8, r_idx), (8, r_idx), rem_colour))
+        style_cmds.append(("FONTNAME",  (8, r_idx), (8, r_idx), "Helvetica-Bold"))
 
-        # Light red row if needs attention
+        if absent > 0:
+            style_cmds.append(("TEXTCOLOR", (5, r_idx), (5, r_idx), _AMBER))
+            style_cmds.append(("FONTNAME",  (5, r_idx), (5, r_idx), "Helvetica-Bold"))
+
         if pct < 75:
             style_cmds.append(
                 ("BACKGROUND", (0, r_idx), (-1, r_idx), _LIGHT_RED)
             )
 
-    cw = [2.2*cm, 5.8*cm, 1.6*cm, 1.6*cm, 1.5*cm, 1.6*cm, 2*cm, 2.8*cm]
+    cw = [2.2*cm, 5.0*cm, 1.6*cm, 1.5*cm, 1.5*cm, 1.5*cm, 1.6*cm, 2*cm, 2.7*cm]
     story.append(_table(rows, cw, style_cmds))
     story.append(Spacer(1, 0.2*cm))
 
@@ -413,10 +443,58 @@ def _subject_performance(story, data: dict, scheme: str):
         Paragraph("<font color='#1A6B3C'><b>■</b></font>  Excellent  (≥ 90%)", _CAPTION),
         Paragraph("<font color='#2E6DA4'><b>■</b></font>  Good  (75–89%)",     _CAPTION),
         Paragraph("<font color='#9B1C1C'><b>■</b></font>  Needs Attention  (< 75%)", _CAPTION),
+        Paragraph("<font color='#B45309'><b>■</b></font>  Absent count",             _CAPTION),
     ]]
-    lt = Table(legend_data, colWidths=[5*cm, 4.5*cm, 5*cm])
+    lt = Table(legend_data, colWidths=[4*cm, 4*cm, 4.5*cm, 4*cm])
     lt.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
     story.append(lt)
+
+    # ── Absent Students Table ─────────────────────────────────
+    absent_report = data.get("absent_report", [])
+    if absent_report:
+        story.append(Spacer(1, 0.5*cm))
+        _hr(story, _AMBER, thickness=0.8, space_before=4, space_after=8)
+        story.append(Paragraph("Students with Absences", _H2))
+        story.append(Paragraph(
+            f"{len(absent_report)} student(s) were marked absent in one or more subjects. "
+            "These students are flagged for follow-up.",
+            _BODY
+        ))
+        story.append(Spacer(1, 0.3*cm))
+
+        ab_rows = [["USN", "Student Name", "Subject Code", "Subject Name"]]
+        ab_cmds = [
+            ("ALIGN", (0, 0), (0, -1), "LEFT"),
+            ("ALIGN", (1, 0), (1, -1), "LEFT"),
+            ("ALIGN", (3, 0), (3, -1), "LEFT"),
+        ]
+
+        for student in absent_report:
+            first = True
+            for subj in student["subjects"]:
+                usn_cell  = student["USN"]  if first else ""
+                name_cell = student["Name"] if first else ""
+                ab_rows.append([
+                    usn_cell,
+                    name_cell,
+                    subj["code"],
+                    subj["name"],
+                ])
+                first = False
+
+            # Subtle separator between students — light amber background
+            start_r = len(ab_rows) - len(student["subjects"])
+            end_r   = len(ab_rows) - 1
+            ab_cmds.append(
+                ("BACKGROUND", (0, start_r), (-1, end_r),
+                 colors.HexColor("#FFFBEB"))
+            )
+            ab_cmds.append(
+                ("LINEBELOW", (0, end_r), (-1, end_r), 0.5, _AMBER)
+            )
+
+        ab_cw = [3.2*cm, 5.5*cm, 2.8*cm, 7.1*cm]
+        story.append(_table(ab_rows, ab_cw, ab_cmds))
 
 
 # ============================================================

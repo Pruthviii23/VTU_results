@@ -18,6 +18,7 @@ _HEADER_FILL   = PatternFill("solid", start_color="1F4E79", end_color="1F4E79")
 _SUBHEAD_FILL  = PatternFill("solid", start_color="2E75B6", end_color="2E75B6")
 _ALT_FILL      = PatternFill("solid", start_color="D6E4F0", end_color="D6E4F0")
 _FAIL_FILL     = PatternFill("solid", start_color="FFD7D7", end_color="FFD7D7")
+_ABSENT_FILL   = PatternFill("solid", start_color="FFF3CD", end_color="FFF3CD")  # amber for absent
 _WHITE_FILL    = PatternFill("solid", start_color="FFFFFF", end_color="FFFFFF")
 
 _HEADER_FONT   = Font(name="Arial", bold=True, color="FFFFFF", size=10)
@@ -147,12 +148,18 @@ def _write_sheet(ws, sem_num: int, rows: list[dict], scheme: str = "2022"):
         alt = (r_idx % 2 == 0)
         bg  = _ALT_FILL if alt else _WHITE_FILL
 
-        def write(c, value, bold=False, fail=False):
+        def write(c, value, bold=False, fail=False, absent=False):
             cell = ws.cell(row=r_idx, column=c, value=value)
+            if absent:
+                fill = _ABSENT_FILL
+            elif fail:
+                fill = _FAIL_FILL
+            else:
+                fill = bg
             _style_cell(
                 cell,
                 font      = _BOLD_FONT if bold else _DATA_FONT,
-                fill      = _FAIL_FILL if fail else bg,
+                fill      = fill,
                 alignment = _LEFT if c == 2 else _CENTER,
                 border    = _BORDER
             )
@@ -173,12 +180,14 @@ def _write_sheet(ws, sem_num: int, rows: list[dict], scheme: str = "2022"):
                                 alignment=_CENTER, border=_BORDER)
             else:
                 result = subj.get("result", "")
-                failed = result.upper() == "F"
+                r_upper = result.upper()
+                failed  = r_upper == "F"
+                absent  = r_upper in ("A", "AB", "ABSENT")
 
-                write(start_col,     subj.get("internal", ""), fail=failed)
-                write(start_col + 1, subj.get("external", ""), fail=failed)
-                write(start_col + 2, subj.get("total",    ""), fail=failed)
-                write(start_col + 3, result,                    fail=failed)
+                write(start_col,     subj.get("internal", ""), fail=failed, absent=absent)
+                write(start_col + 1, subj.get("external", ""), fail=failed, absent=absent)
+                write(start_col + 2, subj.get("total",    ""), fail=failed, absent=absent)
+                write(start_col + 3, result,                    fail=failed, absent=absent)
 
         # SGPA columns
         sgpa_result = sgpa_calc.compute_sgpa(student.get("subjects", []), scheme, student.get("USN", ""))
@@ -265,7 +274,6 @@ def write_excel(all_students: list[dict], output_path: str,
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-
     from collections import defaultdict
     semester_rows: dict[int, list[dict]] = defaultdict(list)
 
@@ -277,10 +285,9 @@ def write_excel(all_students: list[dict], output_path: str,
                 "subjects": subjects,
             })
 
-
     wb = Workbook()
     wb.remove(wb.active)
-    
+
     ordered_sems = sorted(
         semester_rows.keys(),
         key=lambda s: (s != target_semester, s)
@@ -291,10 +298,8 @@ def write_excel(all_students: list[dict], output_path: str,
         _write_sheet(ws, sem, semester_rows[sem], scheme)
         log.info(f"Wrote sheet 'Sem {sem}' with {len(semester_rows[sem])} rows.")
 
-
     ws_summary = wb.create_sheet(title="Summary")
     _write_summary_sheet(ws_summary, all_students, target_semester)
-
 
     try:
         wb.save(output_path)
