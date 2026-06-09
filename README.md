@@ -56,7 +56,7 @@ Automatically generated report containing:
 
 ### Dashboard Report
 
-![PDF Dashboard](images\dashborad.jpg)
+![PDF Dashboard](images/dashborad.jpg)
 
 ---
 
@@ -68,13 +68,13 @@ Automatically generated report containing:
 
 ### Subject-wise Analysis
 
-![Subject Analysis](images\subjects.jpg)
+![Subject Analysis](images/subjects.jpg)
 
 ---
 
 ### Student Rankings
 
-![Ranking Report](images\students.jpg)
+![Ranking Report](images/students.jpg)
 
 ---
 
@@ -168,9 +168,9 @@ Example:
 
 | USN        |
 | ---------- |
-| 1AM22AI001 |
-| 1AM22AI002 |
-| 1AM22AI003 |
+| 1XX22XX001 |
+| 1XX22XX002 |
+| 1XX22XX003 |
 
 ---
 
