@@ -5,14 +5,14 @@ from collections import Counter
 # PATHS                                                                    NOTE: CHANGE THE FILEPATHS AS PER YOUR SYSTEM
 # ============================================================
 
-USN_FILE        = r"VTU_results\Inp-Out\usn_list.xlsx"
-OUTPUT_FILE     = r"VTU_results\Inp-Out\vtu_results.xlsx"
-CHECKPOINT_FILE = r"VTU_results\Inp-Out\checkpoint.txt"
-FAILED_FILE     = r"VTU_results\Inp-Out\failed_usns.txt"
-LOG_FILE        = r"VTU_results\Inp-Out\scraper.log"
+USN_FILE        = r"C:\Users\india\Desktop\VTU_results\Inp-Out\usn_list.xlsx"
+OUTPUT_FILE     = r"C:\Users\india\Desktop\VTU_results\Inp-Out\vtu_results.xlsx"
+CHECKPOINT_FILE = r"C:\Users\india\Desktop\VTU_results\Inp-Out\checkpoint.txt"
+FAILED_FILE     = r"C:\Users\india\Desktop\VTU_results\Inp-Out\failed_usns.txt"
+LOG_FILE        = r"C:\Users\india\Desktop\VTU_results\Inp-Out\scraper.log"
 
 
-MODEL_PATH      = r"VTU_results\crnn_10_prediction_model.keras"
+MODEL_PATH      = r"C:\Users\india\Desktop\VTU_results\crnn_10_prediction_model.keras"
 
 # ============================================================
 # SCRAPER BEHAVIOUR
@@ -311,42 +311,47 @@ SUBJECT_CREDITS: dict[str, dict[str, list]] = {
         "BCS703":    [4, 100],
         "BCS714":    [3, 100],   # wildcard: BCS714x
         "BCS755":    [3, 100],   # wildcard: BCS755x
-        "BCS786":    [6, 100],
+        "BCS786":    [6, 200],
  
         "BCD701":    [4, 100],
         "BCD702":    [4, 100],
         "BCD703":    [4, 100],
         "BCD714":    [3, 100],   # wildcard: BCD714x
         "BCD755":    [3, 100],   # wildcard: BCD755x
-        "BCD786":    [6, 100],
+        "BCD786":    [6, 200],
  
         "BIS701":    [4, 100],
         "BIS702":    [4, 100],
         "BIS703":    [4, 100],
         "BIS714":    [3, 100],   # wildcard: BIS714x
         "BIS755":    [3, 100],   # wildcard: BIS755x
-        "BIS786":    [6, 100],
+        "BIS786":    [6, 200],
  
         "BAI701":    [4, 100],
         "BAI702":    [4, 100],
         "BAI703":    [4, 100],
         "BAI714":    [3, 100],   # wildcard: BAI714x
         "BAI755":    [3, 100],   # wildcard: BAI755x
-        "BAI786":    [6, 100],
+        "BAI786":    [6, 200],
  
         "BAD701":    [4, 100],
         "BAD702":    [4, 100],
         "BAD703":    [4, 100],
         "BAD714":    [3, 100],   # wildcard: BAD714x
         "BAD755":    [3, 100],   # wildcard: BAD755x
-        "BAD786":    [6, 100],
+        "BAD786":    [6, 200],
  
         "BCI701":    [4, 100],
         "BCI702":    [4, 100],
         "BCI703":    [4, 100],
         "BCI714":    [3, 100],   # wildcard: BCI714x
         "BCI755":    [3, 100],   # wildcard: BCI755x
-        "BCI786":    [6, 100],
+        "BCI786":    [6, 200],
+
+        "BEE755":   [3, 100],   # Electrical Engineering Elective (Sem 7)
+        "BME755":   [3, 100],   # Mechanical Engineering Elective (Sem 7)
+        "BCV755":   [3, 100],   # Civil Engineering Elective (Sem 7)
+        "BAE755":   [3, 100],   # Aerospace Engineering Elective (Sem 7)
  
         # ── Sem 8 ───────────────────────────────────────────
         "BCS801":    [3, 100],   # wildcard: BCS801x

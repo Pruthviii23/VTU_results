@@ -21,6 +21,7 @@ _FAIL_FILL     = PatternFill("solid", start_color="FFD7D7", end_color="FFD7D7") 
 _ABSENT_FILL   = PatternFill("solid", start_color="FFF3CD", end_color="FFF3CD")  # amber — Absent
 _WITHHELD_FILL = PatternFill("solid", start_color="E8D5F5", end_color="E8D5F5")  # purple — Withheld
 _NE_FILL       = PatternFill("solid", start_color="D1D5DB", end_color="D1D5DB")  # grey  — Not Eligible
+_LIGHT_GREEN   = PatternFill("solid", start_color="C6EFCE", end_color="C6EFCE")  # green — Cleared
 _WHITE_FILL    = PatternFill("solid", start_color="FFFFFF", end_color="FFFFFF")
 
 _HEADER_FONT   = Font(name="Arial", bold=True, color="FFFFFF", size=10)
@@ -230,39 +231,198 @@ def _write_sheet(ws, sem_num: int, rows: list[dict], scheme: str = "2022"):
     ws.freeze_panes = ws.cell(row=3, column=3)
 
 
-def _write_summary_sheet(ws, all_students: list[dict], target_sem: int):
+def _write_summary_sheet(ws, all_students: list[dict], target_sem: int, scheme: str):
     """
-    Summary sheet: one row per student, columns = USN | Name | Pass | Fail | Backlogs
-    Only counts subjects from the target semester.
+    Summary sheet — target semester only.
+
+    Columns:
+      USN | Name | Pass | Fail | Absent | Withheld | Not Eligible |
+      Total Subjects | Cleared All | SGPA | Total Credits | Earned Credits
+
+    'Cleared All' = True only when every subject in target semester is P.
+    Backlog column removed — replaced by 'Cleared All' which is unambiguous.
     """
-    headers = ["USN", "Name", f"Sem {target_sem} Pass", f"Sem {target_sem} Fail", "Has Backlog"]
+    import sgpa as sgpa_calc
+
+    _FAIL     = {"F", "--"}
+    _ABSENT   = {"A", "AB", "ABSENT"}
+    _WITHHELD = {"W", "WITHHELD"}
+    _NE       = {"X", "NE", "NOT ELIGIBLE", "NOTELIGIBLE"}
+    _ALL_BAD  = _FAIL | _ABSENT | _WITHHELD | _NE
+
+    # ── Header row ────────────────────────────────────────────
+    headers = [
+        "USN", "Name",
+        "Pass", "Fail", "Absent", "Withheld", "Not Eligible",
+        "Total Subjects", "Cleared All",
+        "SGPA", "Total Credits", "Earned Credits",
+    ]
     for c, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=c, value=h)
         _style_cell(cell, font=_HEADER_FONT, fill=_HEADER_FILL,
                     alignment=_CENTER, border=_BORDER)
-    ws.row_dimensions[1].height = 22
+    ws.row_dimensions[1].height = 24
 
+    # ── Data rows — target semester only ─────────────────────
     for r, student in enumerate(all_students, start=2):
         sem_subjects = student["semesters"].get(target_sem, [])
-        passes   = sum(1 for s in sem_subjects if s.get("result", "").upper() == "P")
-        fails    = sum(1 for s in sem_subjects if s.get("result", "").upper() == "F")
-        backlog  = len(student["semesters"]) > 1   # has data from other semesters too
-
         alt = (r % 2 == 0)
         bg  = _ALT_FILL if alt else _WHITE_FILL
 
-        for c, val in enumerate(
-            [student["USN"], student["Name"], passes, fails, "Yes" if backlog else "No"], 1
-        ):
-            cell = ws.cell(row=r, column=c, value=val)
-            _style_cell(cell, font=_DATA_FONT, fill=bg,
-                        alignment=_CENTER if c != 2 else _LEFT, border=_BORDER)
+        passes   = sum(1 for s in sem_subjects if s.get("result","").upper() == "P")
+        fails    = sum(1 for s in sem_subjects if s.get("result","").upper() in _FAIL)
+        absents  = sum(1 for s in sem_subjects if s.get("result","").upper() in _ABSENT)
+        withheld = sum(1 for s in sem_subjects if s.get("result","").upper() in _WITHHELD)
+        ne       = sum(1 for s in sem_subjects if s.get("result","").upper() in _NE)
+        total    = len(sem_subjects)
 
-    ws.column_dimensions["A"].width = 16
-    ws.column_dimensions["B"].width = 28
-    for ltr in ["C", "D", "E"]:
-        ws.column_dimensions[ltr].width = 14
+        # Cleared All: every subject in THIS semester is P
+        cleared = all(
+            s.get("result","").upper() == "P"
+            for s in sem_subjects
+        ) if sem_subjects else False
+
+        # SGPA from target semester subjects only
+        sgpa_result   = sgpa_calc.compute_sgpa(sem_subjects, scheme)
+        sgpa_val      = f"{sgpa_result['sgpa']:.2f}" if sgpa_result["sgpa"] is not None else "—"
+        total_credits  = sgpa_result["total_credits"]
+        earned_credits = sgpa_result["earned_credits"]
+
+        row_vals = [
+            student["USN"], student["Name"],
+            passes, fails, absents, withheld, ne,
+            total, "Yes" if cleared else "No",
+            sgpa_val, total_credits, earned_credits,
+        ]
+
+        for c, val in enumerate(row_vals, 1):
+            cell = ws.cell(row=r, column=c, value=val)
+
+            # Colour logic
+            if c == 9:   # Cleared All column
+                fill = _LIGHT_GREEN if cleared else _FAIL_FILL
+                font = Font(name="Arial", bold=True, size=9,
+                            color="1D6B3E" if cleared else "9B1C1C")
+            elif c in (4, 5, 6, 7) and val and val > 0:
+                fill = _FAIL_FILL if c == 4 else _ABSENT_FILL
+                font = _DATA_FONT
+            else:
+                fill = bg
+                font = _BOLD_FONT if c <= 2 else _DATA_FONT
+
+            _style_cell(cell, font=font, fill=fill,
+                        alignment=_LEFT if c == 2 else _CENTER,
+                        border=_BORDER)
+
+    # ── Column widths ─────────────────────────────────────────
+    widths = [16, 28, 7, 7, 8, 10, 12, 14, 12, 8, 14, 15]
+    for c, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(c)].width = w
+
     ws.freeze_panes = ws.cell(row=2, column=3)
+
+
+def _write_failed_sheet(ws, all_students: list[dict], semester_rows: dict):
+    """
+    'Failed' sheet — one table per semester encountered.
+    Shows every student who has F / A / W / X in any subject for that semester.
+    Columns: USN | Name | Subject Code | Subject Name | Result | Semester
+    """
+    _ALL_BAD  = {"F", "--", "A", "AB", "ABSENT", "W", "WITHHELD",
+                 "X", "NE", "NOT ELIGIBLE", "NOTELIGIBLE"}
+
+    # Build a lookup: USN → Name
+    usn_name = {s["USN"]: s["Name"] for s in all_students}
+
+    # Header
+    headers = ["USN", "Student Name", "Subject Code", "Subject Name", "Result", "Semester"]
+
+    _RESULT_FILL = {
+        "F":  PatternFill("solid", start_color="FFD7D7", end_color="FFD7D7"),
+        "A":  PatternFill("solid", start_color="FFF3CD", end_color="FFF3CD"),
+        "W":  PatternFill("solid", start_color="E8D5F5", end_color="E8D5F5"),
+        "X":  PatternFill("solid", start_color="D1D5DB", end_color="D1D5DB"),
+        "NE": PatternFill("solid", start_color="D1D5DB", end_color="D1D5DB"),
+    }
+
+    current_row = 1
+
+    for sem_num in sorted(semester_rows.keys()):
+        rows_for_sem = semester_rows[sem_num]
+
+        # Collect failed entries for this semester
+        failed_entries = []
+        for row in rows_for_sem:
+            usn  = row["USN"]
+            name = row["Name"]
+            for subj in row["subjects"]:
+                rv = subj.get("result", "").upper().strip()
+                if rv in _ALL_BAD:
+                    failed_entries.append({
+                        "usn":    usn,
+                        "name":   name,
+                        "code":   subj["code"],
+                        "sname":  subj.get("name", subj["code"]),
+                        "result": rv,
+                    })
+
+        if not failed_entries:
+            continue
+
+        # Semester section header
+        sem_cell = ws.cell(row=current_row, column=1,
+                           value=f"Semester {sem_num}  —  {len(failed_entries)} failure(s)")
+        ws.merge_cells(start_row=current_row, end_row=current_row,
+                       start_column=1, end_column=6)
+        _style_cell(sem_cell,
+                    font=Font(name="Arial", bold=True, size=10, color="FFFFFF"),
+                    fill=_HEADER_FILL, alignment=_CENTER, border=_BORDER)
+        ws.row_dimensions[current_row].height = 20
+        current_row += 1
+
+        # Column headers
+        for c, h in enumerate(headers, 1):
+            cell = ws.cell(row=current_row, column=c, value=h)
+            _style_cell(cell, font=_SUBHEAD_FONT, fill=_SUBHEAD_FILL,
+                        alignment=_CENTER, border=_BORDER)
+        ws.row_dimensions[current_row].height = 18
+        current_row += 1
+
+        # Data rows
+        for entry in failed_entries:
+            rv    = entry["result"]
+            # Normalise result label for display
+            label = {"A": "Absent", "AB": "Absent", "ABSENT": "Absent",
+                     "W": "Withheld", "WITHHELD": "Withheld",
+                     "X": "Not Eligible", "NE": "Not Eligible",
+                     "--": "Fail"}.get(rv, rv)
+
+            fill  = _RESULT_FILL.get(rv, _RESULT_FILL.get(rv[:2], _FAIL_FILL))
+            alt   = (current_row % 2 == 0)
+            bg    = _ALT_FILL if alt else _WHITE_FILL
+
+            row_vals = [
+                entry["usn"], entry["name"],
+                entry["code"], entry["sname"],
+                label, f"Sem {sem_num}",
+            ]
+            for c, val in enumerate(row_vals, 1):
+                cell = ws.cell(row=current_row, column=c, value=val)
+                cell_fill = fill if c == 5 else bg
+                _style_cell(cell,
+                            font=_BOLD_FONT if c <= 2 else _DATA_FONT,
+                            fill=cell_fill,
+                            alignment=_LEFT if c in (2, 4) else _CENTER,
+                            border=_BORDER)
+            current_row += 1
+
+        current_row += 1  # blank row between semester blocks
+
+    # Column widths
+    for col, width in enumerate([16, 28, 14, 32, 14, 10], 1):
+        ws.column_dimensions[get_column_letter(col)].width = width
+
+    ws.freeze_panes = ws.cell(row=3, column=3)
 
 
 # ============================================================
@@ -308,7 +468,10 @@ def write_excel(all_students: list[dict], output_path: str,
         log.info(f"Wrote sheet 'Sem {sem}' with {len(semester_rows[sem])} rows.")
 
     ws_summary = wb.create_sheet(title="Summary")
-    _write_summary_sheet(ws_summary, all_students, target_semester)
+    _write_summary_sheet(ws_summary, all_students, target_semester, scheme)
+
+    ws_failed = wb.create_sheet(title="Failed")
+    _write_failed_sheet(ws_failed, all_students, semester_rows)
 
     try:
         wb.save(output_path)
