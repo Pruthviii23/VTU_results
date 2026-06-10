@@ -5,14 +5,14 @@ from collections import Counter
 # PATHS                                                                    NOTE: CHANGE THE FILEPATHS AS PER YOUR SYSTEM
 # ============================================================
 
-USN_FILE        = r"C:\Users\india\Desktop\VTU_results\Inp-Out\usn_list.xlsx"
-OUTPUT_FILE     = r"C:\Users\india\Desktop\VTU_results\Inp-Out\vtu_results.xlsx"
-CHECKPOINT_FILE = r"C:\Users\india\Desktop\VTU_results\Inp-Out\checkpoint.txt"
-FAILED_FILE     = r"C:\Users\india\Desktop\VTU_results\Inp-Out\failed_usns.txt"
-LOG_FILE        = r"C:\Users\india\Desktop\VTU_results\Inp-Out\scraper.log"
+USN_FILE        = r"VTU_results\Inp-Out\usn_list.xlsx"
+OUTPUT_FILE     = r"VTU_results\Inp-Out\vtu_results.xlsx"
+CHECKPOINT_FILE = r"VTU_results\Inp-Out\checkpoint.txt"
+FAILED_FILE     = r"VTU_results\Inp-Out\failed_usns.txt"
+LOG_FILE        = r"VTU_results\Inp-Out\scraper.log"
 
 
-MODEL_PATH      = r"C:\Users\india\Desktop\VTU_results\crnn_10_prediction_model.keras"
+MODEL_PATH      = r"VTU_results\crnn_10_prediction_model.keras"
 
 # ============================================================
 # SCRAPER BEHAVIOUR

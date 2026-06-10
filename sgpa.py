@@ -15,9 +15,21 @@ import config
 log = logging.getLogger(__name__)
 
 
-# Non-pass result categories
-_FAIL_RESULTS   = {"F", "W", "--"}
-_ABSENT_RESULTS = {"A", "AB", "ABSENT"}   # VTU uses "A" on results page
+# ── Result classification sets ───────────────────────────────
+# P  → Pass
+# F  → Fail           : 0 grade points, 0 earned credits
+# A  → Absent         : 0 grade points, 0 earned credits, counts in denominator
+# W  → Withheld       : treated same as Absent for SGPA (result pending)
+# X / NE → Not Eligible: treated same as Absent for SGPA (eligibility issue)
+# -- → Unknown/pending: treated as Fail
+
+_FAIL_RESULTS     = {"F", "--"}
+_ABSENT_RESULTS   = {"A", "AB", "ABSENT"}
+_WITHHELD_RESULTS = {"W", "WITHHELD"}
+_NE_RESULTS       = {"X", "NE", "NOT ELIGIBLE", "NOTELIGIBLE"}
+
+# All non-pass results that contribute 0 grade points
+_ZERO_POINT_RESULTS = _FAIL_RESULTS | _ABSENT_RESULTS | _WITHHELD_RESULTS | _NE_RESULTS
 
 
 def compute_sgpa(subjects: list[dict], scheme: str, usn: str = "") -> dict:
@@ -88,30 +100,37 @@ def compute_sgpa(subjects: list[dict], scheme: str, usn: str = "") -> dict:
             continue
 
         # ── Classify result ───────────────────────────────────
-        absent = result in _ABSENT_RESULTS
-        failed = result in _FAIL_RESULTS or absent   # absent = effectively fail for SGPA
+        is_absent   = result in _ABSENT_RESULTS
+        is_withheld = result in _WITHHELD_RESULTS
+        is_ne       = result in _NE_RESULTS
+        is_fail     = result in _FAIL_RESULTS
+        is_pass     = result == "P"
+        is_zero     = result in _ZERO_POINT_RESULTS
 
-        # ── Percentage for grade lookup ───────────────────────
-        if absent:
-            pct    = 0.0
-            grade  = "A"
-            points = 0
-        elif failed:
+        # ── Grade & points ────────────────────────────────────
+        if is_absent:
+            pct, grade, points = 0.0, "A",  0
+        elif is_withheld:
+            pct, grade, points = 0.0, "W",  0
+        elif is_ne:
+            pct, grade, points = 0.0, "NE", 0
+        elif is_fail:
             try:
                 raw = float(total)
                 pct = (raw / max_marks) * 100.0
             except (ValueError, TypeError):
-                raw, pct = 0, 0.0
+                pct = 0.0
             grade, points = "F", 0
         else:
+            # Pass or unknown — compute from marks
             try:
                 raw = float(total)
                 pct = (raw / max_marks) * 100.0
             except (ValueError, TypeError):
-                raw, pct = 0, 0.0
+                pct = 0.0
             grade, points = config.get_grade(pct)
 
-        passed        = result == "P"
+        passed        = is_pass
         weighted      = credits * points
         sum_weighted += weighted
         sum_credits  += credits
@@ -119,8 +138,11 @@ def compute_sgpa(subjects: list[dict], scheme: str, usn: str = "") -> dict:
         if passed:
             earned_credits += credits
 
-        if absent:
-            log.info(f"[{usn}] '{code}' marked Absent — 0 grade points, 0 earned credits.")
+        if is_zero and not is_fail:
+            log.info(
+                f"[{usn}] '{code}' result='{result}' "
+                f"— 0 grade points, 0 earned credits."
+            )
 
         detail.append({
             "code":         code,
@@ -133,7 +155,9 @@ def compute_sgpa(subjects: list[dict], scheme: str, usn: str = "") -> dict:
             "grade_points": points,
             "weighted":     weighted,
             "passed":       passed,
-            "absent":       absent,
+            "absent":       is_absent,
+            "withheld":     is_withheld,
+            "not_eligible": is_ne,
         })
 
     # ── SGPA ──────────────────────────────────────────────────

@@ -17,8 +17,10 @@ log = logging.getLogger(__name__)
 _HEADER_FILL   = PatternFill("solid", start_color="1F4E79", end_color="1F4E79")
 _SUBHEAD_FILL  = PatternFill("solid", start_color="2E75B6", end_color="2E75B6")
 _ALT_FILL      = PatternFill("solid", start_color="D6E4F0", end_color="D6E4F0")
-_FAIL_FILL     = PatternFill("solid", start_color="FFD7D7", end_color="FFD7D7")
-_ABSENT_FILL   = PatternFill("solid", start_color="FFF3CD", end_color="FFF3CD")  # amber for absent
+_FAIL_FILL     = PatternFill("solid", start_color="FFD7D7", end_color="FFD7D7")  # red   — Fail
+_ABSENT_FILL   = PatternFill("solid", start_color="FFF3CD", end_color="FFF3CD")  # amber — Absent
+_WITHHELD_FILL = PatternFill("solid", start_color="E8D5F5", end_color="E8D5F5")  # purple — Withheld
+_NE_FILL       = PatternFill("solid", start_color="D1D5DB", end_color="D1D5DB")  # grey  — Not Eligible
 _WHITE_FILL    = PatternFill("solid", start_color="FFFFFF", end_color="FFFFFF")
 
 _HEADER_FONT   = Font(name="Arial", bold=True, color="FFFFFF", size=10)
@@ -148,9 +150,14 @@ def _write_sheet(ws, sem_num: int, rows: list[dict], scheme: str = "2022"):
         alt = (r_idx % 2 == 0)
         bg  = _ALT_FILL if alt else _WHITE_FILL
 
-        def write(c, value, bold=False, fail=False, absent=False):
+        def write(c, value, bold=False, fail=False, absent=False,
+                  withheld=False, ne=False):
             cell = ws.cell(row=r_idx, column=c, value=value)
-            if absent:
+            if withheld:
+                fill = _WITHHELD_FILL
+            elif ne:
+                fill = _NE_FILL
+            elif absent:
                 fill = _ABSENT_FILL
             elif fail:
                 fill = _FAIL_FILL
@@ -179,15 +186,17 @@ def _write_sheet(ws, sem_num: int, rows: list[dict], scheme: str = "2022"):
                     _style_cell(cell, font=_DATA_FONT, fill=bg,
                                 alignment=_CENTER, border=_BORDER)
             else:
-                result = subj.get("result", "")
+                result  = subj.get("result", "")
                 r_upper = result.upper()
-                failed  = r_upper == "F"
-                absent  = r_upper in ("A", "AB", "ABSENT")
+                failed   = r_upper in ("F", "--")
+                absent   = r_upper in ("A", "AB", "ABSENT")
+                withheld = r_upper in ("W", "WITHHELD")
+                ne       = r_upper in ("X", "NE", "NOT ELIGIBLE")
 
-                write(start_col,     subj.get("internal", ""), fail=failed, absent=absent)
-                write(start_col + 1, subj.get("external", ""), fail=failed, absent=absent)
-                write(start_col + 2, subj.get("total",    ""), fail=failed, absent=absent)
-                write(start_col + 3, result,                    fail=failed, absent=absent)
+                write(start_col,     subj.get("internal", ""), fail=failed, absent=absent, withheld=withheld, ne=ne)
+                write(start_col + 1, subj.get("external", ""), fail=failed, absent=absent, withheld=withheld, ne=ne)
+                write(start_col + 2, subj.get("total",    ""), fail=failed, absent=absent, withheld=withheld, ne=ne)
+                write(start_col + 3, result,                    fail=failed, absent=absent, withheld=withheld, ne=ne)
 
         # SGPA columns
         sgpa_result = sgpa_calc.compute_sgpa(student.get("subjects", []), scheme, student.get("USN", ""))

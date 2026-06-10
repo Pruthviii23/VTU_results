@@ -139,21 +139,28 @@ def _remark(pct: float) -> tuple[str, object]:
 # ============================================================
 
 def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
-    sub_stats     = defaultdict(lambda: {"total": 0, "pass": 0, "fail": 0, "absent": 0, "marks": []})
-    sgpa_values   = []
-    ranked        = []
-    absent_report = []   # list of {USN, Name, subjects: [code, name]}
+    sub_stats    = defaultdict(lambda: {
+        "total": 0, "pass": 0, "fail": 0,
+        "absent": 0, "withheld": 0, "ne": 0, "marks": []
+    })
+    sgpa_values  = []
+    ranked       = []
+    nonpass_report = []  # students with A / W / X / NE in any subject
 
-    _ABSENT = {"A", "AB", "ABSENT"}
-    _FAIL   = {"F", "W", "--"}
+    _PASS     = {"P"}
+    _FAIL     = {"F", "--"}
+    _ABSENT   = {"A", "AB", "ABSENT"}
+    _WITHHELD = {"W", "WITHHELD"}
+    _NE       = {"X", "NE", "NOT ELIGIBLE", "NOTELIGIBLE"}
+    _ALL_NONPASS = _FAIL | _ABSENT | _WITHHELD | _NE
 
     for student in all_students:
         sem_subjects = student["semesters"].get(semester, [])
         if not sem_subjects:
             continue
 
-        result  = sgpa_calc.compute_sgpa(sem_subjects, scheme, student["USN"])
-        sgpa_v  = result["sgpa"]
+        sgpa_result = sgpa_calc.compute_sgpa(sem_subjects, scheme, student["USN"])
+        sgpa_v      = sgpa_result["sgpa"]
 
         if sgpa_v is not None:
             sgpa_values.append(sgpa_v)
@@ -163,27 +170,21 @@ def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
                 "SGPA": sgpa_v,
             })
 
-        # Collect absent subjects for this student
-        absent_subjects = []
+        flagged_subjects = []  # subjects with A / W / X / NE for this student
 
         for subj in sem_subjects:
             code       = subj["code"]
-            result_val = subj.get("result", "").upper()
+            result_val = subj.get("result", "").upper().strip()
 
             sub_stats[code]["total"] += 1
 
-            if result_val == "P":
+            if result_val in _PASS:
                 sub_stats[code]["pass"] += 1
                 try:
                     sub_stats[code]["marks"].append(int(subj.get("total", "")))
                 except (ValueError, TypeError):
                     pass
-            elif result_val in _ABSENT:
-                sub_stats[code]["absent"] += 1
-                absent_subjects.append({
-                    "code": code,
-                    "name": subj.get("name", code),
-                })
+
             elif result_val in _FAIL:
                 sub_stats[code]["fail"] += 1
                 try:
@@ -191,11 +192,35 @@ def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
                 except (ValueError, TypeError):
                     pass
 
-        if absent_subjects:
-            absent_report.append({
+            elif result_val in _ABSENT:
+                sub_stats[code]["absent"] += 1
+                flagged_subjects.append({
+                    "code":   code,
+                    "name":   subj.get("name", code),
+                    "status": "Absent",
+                })
+
+            elif result_val in _WITHHELD:
+                sub_stats[code]["withheld"] += 1
+                flagged_subjects.append({
+                    "code":   code,
+                    "name":   subj.get("name", code),
+                    "status": "Withheld",
+                })
+
+            elif result_val in _NE:
+                sub_stats[code]["ne"] += 1
+                flagged_subjects.append({
+                    "code":   code,
+                    "name":   subj.get("name", code),
+                    "status": "Not Eligible",
+                })
+
+        if flagged_subjects:
+            nonpass_report.append({
                 "USN":      student["USN"],
                 "Name":     student["Name"],
-                "subjects": absent_subjects,
+                "subjects": flagged_subjects,
             })
 
     ranked.sort(key=lambda s: s["SGPA"], reverse=True)
@@ -205,13 +230,12 @@ def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
     high_sgpa = max(sgpa_values) if sgpa_values else None
     low_sgpa  = min(sgpa_values) if sgpa_values else None
 
-    # Overall pass: no F and no A in target semester
     total_students = len(all_students)
     pass_count = sum(
         1 for s in all_students
         if s["semesters"].get(semester)
         and all(
-            sub.get("result", "").upper() not in (_FAIL | _ABSENT)
+            sub.get("result", "").upper().strip() not in _ALL_NONPASS
             for sub in s["semesters"].get(semester, [])
         )
     )
@@ -227,7 +251,7 @@ def _analyse(all_students: list[dict], semester: int, scheme: str) -> dict:
         "low_sgpa":         low_sgpa,
         "overall_pass_pct": overall_pass_pct,
         "pass_count":       pass_count,
-        "absent_report":    absent_report,
+        "nonpass_report":   nonpass_report,
     }
 
 
@@ -449,99 +473,80 @@ def _subject_performance(story, data: dict, scheme: str):
     lt.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
     story.append(lt)
 
-    # ── Absent Students Table ─────────────────────────────────
-    absent_report = data.get("absent_report", [])
-    if absent_report:
+    # ── Non-Pass Flagged Students Table (A / W / X / NE) ────────
+    nonpass_report = data.get("nonpass_report", [])
+    if nonpass_report:
         story.append(Spacer(1, 0.5*cm))
         _hr(story, _AMBER, thickness=0.8, space_before=4, space_after=8)
-        story.append(Paragraph("Students with Absences", _H2))
+        story.append(Paragraph("Flagged Students — Absent / Withheld / Not Eligible", _H2))
+
+        # Count by status type for the summary line
+        status_counts: dict[str, int] = {}
+        for student in nonpass_report:
+            for subj in student["subjects"]:
+                s = subj["status"]
+                status_counts[s] = status_counts.get(s, 0) + 1
+
+        summary_parts = [f"{cnt} {status.lower()}" for status, cnt in status_counts.items()]
         story.append(Paragraph(
-            f"{len(absent_report)} student(s) were marked absent in one or more subjects. "
-            "These students are flagged for follow-up.",
+            f"{len(nonpass_report)} student(s) flagged across "
+            f"{sum(status_counts.values())} subject result(s): "
+            f"{', '.join(summary_parts)}. These students require follow-up.",
             _BODY
         ))
         story.append(Spacer(1, 0.3*cm))
 
-        ab_rows = [["USN", "Student Name", "Subject Code", "Subject Name"]]
-        ab_cmds = [
+        # Status colour map
+        _STATUS_COLOUR = {
+            "Absent":      _AMBER,
+            "Withheld":    colors.HexColor("#7C3AED"),   # purple
+            "Not Eligible": colors.HexColor("#6B7280"),   # grey
+        }
+        _STATUS_BG = {
+            "Absent":       colors.HexColor("#FFFBEB"),
+            "Withheld":     colors.HexColor("#F5F0FF"),
+            "Not Eligible": colors.HexColor("#F3F4F6"),
+        }
+
+        np_rows = [["USN", "Student Name", "Subject Code", "Subject Name", "Status"]]
+        np_cmds = [
             ("ALIGN", (0, 0), (0, -1), "LEFT"),
             ("ALIGN", (1, 0), (1, -1), "LEFT"),
             ("ALIGN", (3, 0), (3, -1), "LEFT"),
         ]
 
-        for student in absent_report:
+        for student in nonpass_report:
             first = True
             for subj in student["subjects"]:
                 usn_cell  = student["USN"]  if first else ""
                 name_cell = student["Name"] if first else ""
-                ab_rows.append([
+                np_rows.append([
                     usn_cell,
                     name_cell,
                     subj["code"],
                     subj["name"],
+                    subj["status"],
                 ])
+
+                r = len(np_rows) - 1
+                sc = _STATUS_COLOUR.get(subj["status"], _DARK_GREY)
+                bg = _STATUS_BG.get(subj["status"], _WHITE)
+                np_cmds.append(("BACKGROUND", (0, r), (-1, r), bg))
+                np_cmds.append(("TEXTCOLOR",  (4, r), (4,  r), sc))
+                np_cmds.append(("FONTNAME",   (4, r), (4,  r), "Helvetica-Bold"))
                 first = False
 
-            # Subtle separator between students — light amber background
-            start_r = len(ab_rows) - len(student["subjects"])
-            end_r   = len(ab_rows) - 1
-            ab_cmds.append(
-                ("BACKGROUND", (0, start_r), (-1, end_r),
-                 colors.HexColor("#FFFBEB"))
-            )
-            ab_cmds.append(
-                ("LINEBELOW", (0, end_r), (-1, end_r), 0.5, _AMBER)
-            )
+            # Underline after each student block
+            end_r = len(np_rows) - 1
+            np_cmds.append(("LINEBELOW", (0, end_r), (-1, end_r), 0.4, _MID_GREY))
 
-        ab_cw = [3.2*cm, 5.5*cm, 2.8*cm, 7.1*cm]
-        story.append(_table(ab_rows, ab_cw, ab_cmds))
+        np_cw = [3*cm, 5*cm, 2.8*cm, 5.8*cm, 2.6*cm]
+        story.append(_table(np_rows, np_cw, np_cmds))
 
 
 # ============================================================
 # SECTION 3: STUDENT PERFORMANCE
 # ============================================================
-
-def _sgpa_bar_chart(ranked: list[dict]) -> Image | None:
-    """
-    Horizontal bar chart of SGPA per student.
-    Only generated if student count is between 2 and 40
-    (too few = not useful; too many = unreadable).
-    """
-    n = len(ranked)
-    if n < 2 or n > 40:
-        return None
-
-    names  = [f"{r['USN'][-4:]}" for r in ranked]   # last 4 chars of USN
-    sgpas  = [r["SGPA"] for r in ranked]
-    colours = ["#1B3A5C" if s >= 8.0 else "#2E6DA4" if s >= 6.0 else "#9B1C1C"
-               for s in sgpas]
-
-    fig_h  = max(3.5, n * 0.28)
-    fig, ax = plt.subplots(figsize=(7, fig_h))
-    bars = ax.barh(names, sgpas, color=colours, edgecolor="white", height=0.6)
-    ax.bar_label(bars, fmt="%.2f", fontsize=6.5, padding=3, color="#374151")
-    ax.set_xlim(0, 10.5)
-    ax.set_xlabel("SGPA", fontsize=8, color="#374151")
-    ax.tick_params(axis="y", labelsize=6.5)
-    ax.tick_params(axis="x", labelsize=7)
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.4)
-    ax.set_axisbelow(True)
-    ax.axvline(x=8.0, color="#1A6B3C", linestyle=":", linewidth=0.8, alpha=0.7)
-    ax.axvline(x=6.0, color="#B45309", linestyle=":", linewidth=0.8, alpha=0.7)
-    ax.set_title("SGPA Distribution by Student", fontsize=9,
-                 color="#1B3A5C", pad=8, fontweight="bold")
-    fig.tight_layout()
-
-    width_cm = 15.5
-    height_cm = max(4, fig_h * 1.5)
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
-                facecolor="white", edgecolor="none")
-    buf.seek(0)
-    plt.close(fig)
-    return Image(buf, width=width_cm*cm, height=height_cm*cm)
-
 
 def _student_performance(story, data: dict):
     story.append(PageBreak())
@@ -619,24 +624,8 @@ def _student_performance(story, data: dict):
         summary_cmds.append(("TEXTCOLOR", (0, r_idx), (0, r_idx), c))
         summary_cmds.append(("FONTNAME",  (0, r_idx), (0, r_idx), "Helvetica-Bold"))
 
-    KeepTogether([
-        Paragraph("Class Distribution", _H3),
-        _table(summary_rows, [7*cm, 3*cm, 4*cm], summary_cmds),
-    ])
     story.append(Paragraph("Class Distribution", _H3))
     story.append(_table(summary_rows, [7*cm, 3*cm, 4*cm], summary_cmds))
-
-    # SGPA bar chart — only if useful
-    story.append(Spacer(1, 0.5*cm))
-    chart = _sgpa_bar_chart(ranked)
-    if chart:
-        story.append(Paragraph("SGPA Overview", _H3))
-        story.append(chart)
-        story.append(Paragraph(
-            "Blue = SGPA ≥ 8.0  ·  Steel = 6.0–7.9  ·  Red = below 6.0  "
-            "|  Green dotted line = 8.0  ·  Amber dotted line = 6.0",
-            _CAPTION
-        ))
 
 
 # ============================================================
